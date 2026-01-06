@@ -552,12 +552,17 @@ proc xth_me_image_rescan {imgx} {
   set scale $xth(me,imgs,$imgx,scale)
   set needs_transform [expr {$rotation != 0 || $scale != 1.0}]
 
+  puts "DEBUG rescan: rotation=$rotation scale=$scale needs_transform=$needs_transform"
+  puts "DEBUG: Original image size: [image width $srci]x[image height $srci]"
+
   if {$needs_transform} {
     xth_status_bar_status me [format "Transforming image %s ..." $xth(me,imgs,$imgx,name)]
 
     # First apply rotation if needed
     if {$rotation != 0} {
+      puts "DEBUG: Applying rotation $rotation"
       set rotated_img [xth_me_image_rotate $srci $rotation]
+      puts "DEBUG: Rotated image size: [image width $rotated_img]x[image height $rotated_img]"
       set transform_src $rotated_img
     } else {
       set transform_src $srci
@@ -565,7 +570,9 @@ proc xth_me_image_rescan {imgx} {
 
     # Then apply scale if needed
     if {$scale != 1.0} {
+      puts "DEBUG: Applying scale $scale"
       set scaled_img [xth_me_image_scale $transform_src $scale]
+      puts "DEBUG: Scaled image size: [image width $scaled_img]x[image height $scaled_img]"
       if {$rotation != 0} {
         image delete $transform_src
       }
@@ -573,6 +580,7 @@ proc xth_me_image_rescan {imgx} {
     } else {
       set srci $transform_src
     }
+    puts "DEBUG: Final transformed image size: [image width $srci]x[image height $srci]"
   }
 
   set totalsi [llength $xth(me,imgs,$imgx,subimgs)]
@@ -589,8 +597,11 @@ proc xth_me_image_rescan {imgx} {
     if {$needs_transform} {
       $xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
       if {$csi == 1} {
+        puts "DEBUG: Copying transformed image to tile dsti"
+        puts "DEBUG: Before copy - dsti size: [image width $dsti]x[image height $dsti]"
         $dsti blank
         $dsti copy $srci -shrink
+        puts "DEBUG: After copy - dsti size: [image width $dsti]x[image height $dsti]"
       }
     } else {
       switch $xth(me,zoom) {
@@ -671,12 +682,17 @@ proc xth_me_image_rescan {imgx} {
   set scale $xth(me,imgs,$imgx,scale)
   set needs_transform [expr {$rotation != 0 || $scale != 1.0}]
 
+  puts "DEBUG rescan: rotation=$rotation scale=$scale needs_transform=$needs_transform"
+  puts "DEBUG: Original image size: [image width $srci]x[image height $srci]"
+
   if {$needs_transform} {
     xth_status_bar_status me [format "Transforming image %s ..." $xth(me,imgs,$imgx,name)]
 
     # First apply rotation if needed
     if {$rotation != 0} {
+      puts "DEBUG: Applying rotation $rotation"
       set rotated_img [xth_me_image_rotate $srci $rotation]
+      puts "DEBUG: Rotated image size: [image width $rotated_img]x[image height $rotated_img]"
       set transform_src $rotated_img
     } else {
       set transform_src $srci
@@ -684,7 +700,9 @@ proc xth_me_image_rescan {imgx} {
 
     # Then apply scale if needed
     if {$scale != 1.0} {
+      puts "DEBUG: Applying scale $scale"
       set scaled_img [xth_me_image_scale $transform_src $scale]
+      puts "DEBUG: Scaled image size: [image width $scaled_img]x[image height $scaled_img]"
       if {$rotation != 0} {
         image delete $transform_src
       }
@@ -692,6 +710,7 @@ proc xth_me_image_rescan {imgx} {
     } else {
       set srci $transform_src
     }
+    puts "DEBUG: Final transformed image size: [image width $srci]x[image height $srci]"
   }
 
   set totalsi [llength $xth(me,imgs,$imgx,subimgs)]
