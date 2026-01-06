@@ -483,52 +483,76 @@ proc xth_me_image_redraw {imgx} {
   set y [lindex $xth(me,imgs,$imgx,position) 1]
   set w [image width $xth(me,imgs,$imgx,image)]
   set h [image height $xth(me,imgs,$imgx,image)]
+
+  # Check if transformations are active
+  set rotation $xth(me,imgs,$imgx,rotation)
+  set scale $xth(me,imgs,$imgx,scale)
+  set needs_transform [expr {$rotation != 0 || $scale != 1.0}]
+
   # ak je zoom 100 - nastavi image na source image
   # a kasle na ostatne
   if {$xth(me,zoom) <= 100} {
     foreach imgl $xth(me,imgs,$imgx,subimgs) {
       incr csi
-      $xth(me,can) coords [lindex $imgl 1] \
-	[xth_me_real2canx [expr $x + [lindex $imgl 2]]] \
-	[xth_me_real2cany [expr $y - [lindex $imgl 3]]]
+      if {$needs_transform && $csi == 1} {
+        # For transformed images, position first tile at base position
+        puts "DEBUG redraw: Positioning transformed tile at $x,$y"
+        $xth(me,can) coords [lindex $imgl 1] \
+          [xth_me_real2canx $x] \
+          [xth_me_real2cany $y]
+      } elseif {!$needs_transform} {
+        # For normal images, use tile offsets
+        $xth(me,can) coords [lindex $imgl 1] \
+          [xth_me_real2canx [expr $x + [lindex $imgl 2]]] \
+          [xth_me_real2cany [expr $y - [lindex $imgl 3]]]
+      }
     }
   } else {
-    # najde si suradnice z obrazka, ktore su viditelne
-    set imgl [lindex $xth(me,imgs,$imgx,subimgs) 0]
-    set cminx [winfo x $xth(me,can)]
-    set cminy [winfo y $xth(me,can)]
-    set cmaxx [expr $cminx + [winfo width $xth(me,can)]]
-    set cmaxy [expr $cminy + [winfo height $xth(me,can)]]
-    set sx [xth_me_can2realx [$xth(me,can) canvasx $cminx]]
-    set sw [expr [xth_me_can2realx [$xth(me,can) canvasx $cmaxx]] - $sx]
-    set sy [xth_me_can2realy [$xth(me,can) canvasy $cminy]]
-    set sh [expr $sy - [xth_me_can2realy [$xth(me,can) canvasy $cmaxy]]]
-
-    # ak je nieco viditelne - tak to zobrazi
-    set vfx [expr round($sx - $x)]
-    set vfy [expr round($y - $sy)] 
-    set vtx [expr round($vfx + $sw)] 
-    set vty [expr round($vfy + $sh)]
-    if {$vfx < 0} {set vfx 0}
-    if {$vfy < 0} {set vfy 0}
-    if {$vtx > $w} {set vtx $w}
-    if {$vty > $h} {set vty $h}
-    
-    #puts "$vfx $vfy $vtx $vty"
-    if {($vtx <= 0) || ($vty <= 0) || 
-	($vfx >= $w) || ($vfy >= $h) ||
-	($vtx <= $vfx) || ($vty <= $vfy)} {
-      # nezobrazime nic
-      $xth(me,can) itemconfigure [lindex $imgl 1] -image {}
-    } else {
-      # zobrazime vyrez
-      set dsti [lindex $imgl 0]
-      $dsti copy $xth(me,imgs,$imgx,image) -zoom [expr $xth(me,zoom) / 100] -shrink \
-	-from $vfx $vfy $vtx $vty
-      $xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
+    # For transformed images at high zoom, just position the first tile
+    if {$needs_transform} {
+      set imgl [lindex $xth(me,imgs,$imgx,subimgs) 0]
+      puts "DEBUG redraw (zoom>100): Positioning transformed tile at $x,$y"
       $xth(me,can) coords [lindex $imgl 1] \
-	[xth_me_real2canx [expr $x + $vfx]] \
-	[xth_me_real2cany [expr $y - $vfy]]
+        [xth_me_real2canx $x] \
+        [xth_me_real2cany $y]
+    } else {
+      # najde si suradnice z obrazka, ktore su viditelne
+      set imgl [lindex $xth(me,imgs,$imgx,subimgs) 0]
+      set cminx [winfo x $xth(me,can)]
+      set cminy [winfo y $xth(me,can)]
+      set cmaxx [expr $cminx + [winfo width $xth(me,can)]]
+      set cmaxy [expr $cminy + [winfo height $xth(me,can)]]
+      set sx [xth_me_can2realx [$xth(me,can) canvasx $cminx]]
+      set sw [expr [xth_me_can2realx [$xth(me,can) canvasx $cmaxx]] - $sx]
+      set sy [xth_me_can2realy [$xth(me,can) canvasy $cminy]]
+      set sh [expr $sy - [xth_me_can2realy [$xth(me,can) canvasy $cmaxy]]]
+
+      # ak je nieco viditelne - tak to zobrazi
+      set vfx [expr round($sx - $x)]
+      set vfy [expr round($y - $sy)]
+      set vtx [expr round($vfx + $sw)]
+      set vty [expr round($vfy + $sh)]
+      if {$vfx < 0} {set vfx 0}
+      if {$vfy < 0} {set vfy 0}
+      if {$vtx > $w} {set vtx $w}
+      if {$vty > $h} {set vty $h}
+
+      #puts "$vfx $vfy $vtx $vty"
+      if {($vtx <= 0) || ($vty <= 0) ||
+        ($vfx >= $w) || ($vfy >= $h) ||
+        ($vtx <= $vfx) || ($vty <= $vfy)} {
+        # nezobrazime nic
+        $xth(me,can) itemconfigure [lindex $imgl 1] -image {}
+      } else {
+        # zobrazime vyrez
+        set dsti [lindex $imgl 0]
+        $dsti copy $xth(me,imgs,$imgx,image) -zoom [expr $xth(me,zoom) / 100] -shrink \
+          -from $vfx $vfy $vtx $vty
+        $xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
+        $xth(me,can) coords [lindex $imgl 1] \
+          [xth_me_real2canx [expr $x + $vfx]] \
+          [xth_me_real2cany [expr $y - $vfy]]
+      }
     }
   }
   update idletasks
@@ -657,11 +681,26 @@ proc xth_me_image_redraw {imgx} {
   set csi 0
   set x [lindex $xth(me,imgs,$imgx,position) 0]
   set y [lindex $xth(me,imgs,$imgx,position) 1]
+
+  # Check if transformations are active
+  set rotation $xth(me,imgs,$imgx,rotation)
+  set scale $xth(me,imgs,$imgx,scale)
+  set needs_transform [expr {$rotation != 0 || $scale != 1.0}]
+
   foreach imgl $xth(me,imgs,$imgx,subimgs) {
     incr csi
-    $xth(me,can) coords [lindex $imgl 1] \
-      [xth_me_real2canx [expr $x + [lindex $imgl 2]]] \
-      [xth_me_real2cany [expr $y - [lindex $imgl 3]]]
+    if {$needs_transform && $csi == 1} {
+      # For transformed images, position first tile at base position
+      puts "DEBUG redraw (NOZOOMING): Positioning transformed tile at $x,$y"
+      $xth(me,can) coords [lindex $imgl 1] \
+        [xth_me_real2canx $x] \
+        [xth_me_real2cany $y]
+    } elseif {!$needs_transform} {
+      # For normal images, use tile offsets
+      $xth(me,can) coords [lindex $imgl 1] \
+        [xth_me_real2canx [expr $x + [lindex $imgl 2]]] \
+        [xth_me_real2cany [expr $y - [lindex $imgl 3]]]
+    }
   }
   update idletasks
 }
