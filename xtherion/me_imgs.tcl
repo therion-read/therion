@@ -518,12 +518,18 @@ proc xth_me_image_rescan {imgx} {
     # Then apply scale if needed
     if {$scale != 1.0} {
       set scaled_img [image create photo]
+      # Round scale to integer for Tk compatibility
+      set int_scale [expr {int($scale + 0.5)}]
+      if {$int_scale < 1} {set int_scale 1}
+
       if {$scale > 1.0} {
-        # Zoom in
-        $scaled_img copy $transform_src -zoom $scale
+        # Zoom in - use integer zoom
+        $scaled_img copy $transform_src -zoom $int_scale
       } else {
-        # Zoom out
-        $scaled_img copy $transform_src -subsample [expr {1.0 / $scale}]
+        # Zoom out - calculate integer subsample
+        set subsample [expr {int(1.0 / $scale + 0.5)}]
+        if {$subsample < 1} {set subsample 1}
+        $scaled_img copy $transform_src -subsample $subsample
       }
       if {$rotation != 0} {
         image delete $transform_src
@@ -550,12 +556,19 @@ proc xth_me_image_rescan {imgx} {
 	$xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
       }
     }
-    switch $xth(me,zoom) {
-      25 {$dsti copy $srci -subsample 4 -shrink}
-      50 {$dsti copy $srci -subsample 2 -shrink}
-      200 {}
-      400 {}
-      default {}
+    # When transformations are applied, use transformed image directly
+    if {$needs_transform} {
+      if {$csi == 1} {
+        $dsti copy $srci
+      }
+    } else {
+      switch $xth(me,zoom) {
+        25 {$dsti copy $srci -subsample 4 -shrink}
+        50 {$dsti copy $srci -subsample 2 -shrink}
+        200 {}
+        400 {}
+        default {}
+      }
     }
   }
   xth_me_progbar_hide
@@ -627,12 +640,18 @@ proc xth_me_image_rescan {imgx} {
     # Then apply scale if needed
     if {$scale != 1.0} {
       set scaled_img [image create photo]
+      # Round scale to integer for Tk compatibility
+      set int_scale [expr {int($scale + 0.5)}]
+      if {$int_scale < 1} {set int_scale 1}
+
       if {$scale > 1.0} {
-        # Zoom in
-        $scaled_img copy $transform_src -zoom $scale
+        # Zoom in - use integer zoom
+        $scaled_img copy $transform_src -zoom $int_scale
       } else {
-        # Zoom out
-        $scaled_img copy $transform_src -subsample [expr {1.0 / $scale}]
+        # Zoom out - calculate integer subsample
+        set subsample [expr {int(1.0 / $scale + 0.5)}]
+        if {$subsample < 1} {set subsample 1}
+        $scaled_img copy $transform_src -subsample $subsample
       }
       if {$rotation != 0} {
         image delete $transform_src
@@ -652,17 +671,28 @@ proc xth_me_image_rescan {imgx} {
     incr csi
     xth_me_progbar_prog $csi
     $dsti blank
-    switch $xth(me,zoom) {
-      25 {$dsti copy $srci -subsample 4 -shrink -from \
-	[lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
-      50 {$dsti copy $srci -subsample 2 -shrink -from \
-	[lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
-      200 {$dsti copy $srci -zoom 2 -shrink -from \
-	[lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
-      400 {$dsti copy $srci -zoom 4 -shrink -from \
-	[lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
-      default {$dsti copy $srci -shrink -from \
-	[lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
+
+    # When transformations are applied, dimensions change - use whole image instead of tiles
+    if {$needs_transform} {
+      # Copy entire transformed image to first tile
+      if {$csi == 1} {
+        $dsti copy $srci
+      }
+      # Leave other tiles blank
+    } else {
+      # Normal tile-based zoom
+      switch $xth(me,zoom) {
+        25 {$dsti copy $srci -subsample 4 -shrink -from \
+          [lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
+        50 {$dsti copy $srci -subsample 2 -shrink -from \
+          [lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
+        200 {$dsti copy $srci -zoom 2 -shrink -from \
+          [lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
+        400 {$dsti copy $srci -zoom 4 -shrink -from \
+          [lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
+        default {$dsti copy $srci -shrink -from \
+          [lindex $imgl 2] [lindex $imgl 3] [lindex $imgl 4] [lindex $imgl 5]}
+      }
     }
   }
   xth_me_progbar_hide
