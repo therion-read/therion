@@ -293,9 +293,15 @@ proc xth_me_image_set_scale_to {} {
 }
 
 
+# Convert RGB values to hex color format
+proc xth_me_rgb2hex {rgb} {
+  lassign $rgb r g b
+  return [format "#%02x%02x%02x" $r $g $b]
+}
+
 # Rotate image by any angle (in degrees)
 # Returns a new photo image with the rotation applied
-# Uses bilinear interpolation for smooth rotation
+# Uses nearest-neighbor sampling for speed
 proc xth_me_image_rotate {srcimg angle} {
   # Normalize angle to 0-360 range
   set angle [expr {fmod($angle, 360)}]
@@ -371,10 +377,11 @@ proc xth_me_image_rotate {srcimg angle} {
   # Fill with transparent/black background
   $dstimg put black -to 0 0 $new_w $new_h
 
-  # Perform rotation with nearest-neighbor sampling for speed
-  # For better quality but slower, use bilinear interpolation
-  for {set dy 0} {$dy < $new_h} {incr dy 2} {
-    for {set dx 0} {$dx < $new_w} {incr dx 2} {
+  # Perform rotation with nearest-neighbor sampling
+  # Process row by row to build pixel data efficiently
+  for {set dy 0} {$dy < $new_h} {incr dy} {
+    set row_data {}
+    for {set dx 0} {$dx < $new_w} {incr dx} {
       # Map destination coordinates back to source
       set rel_x [expr {$dx - $new_cx}]
       set rel_y [expr {$dy - $new_cy}]
@@ -389,10 +396,13 @@ proc xth_me_image_rotate {srcimg angle} {
 
       if {$ix >= 0 && $ix < $w && $iy >= 0 && $iy < $h} {
         set pixel [$srcimg get $ix $iy]
-        # Fill 2x2 block for speed
-        $dstimg put [list $pixel] -to $dx $dy [expr {min($dx+2, $new_w)}] [expr {min($dy+2, $new_h)}]
+        lappend row_data [xth_me_rgb2hex $pixel]
+      } else {
+        lappend row_data black
       }
     }
+    # Put entire row at once for better performance
+    $dstimg put [list $row_data] -to 0 $dy
   }
 
   return $dstimg
