@@ -583,20 +583,23 @@ proc xth_me_image_rescan {imgx} {
     set dsti [lindex $imgl 0]
     incr csi
     xth_me_progbar_prog $csi
-    switch $xth(me,zoom) {
-      100 {
-	$xth(me,can) itemconfigure [lindex $imgl 1] -image $srci
-      }
-      default {
-	$xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
-      }
-    }
-    # When transformations are applied, use transformed image directly
+
+    # When transformations are active, always use dsti (we'll delete srci later)
+    # Otherwise, at zoom 100 use srci directly
     if {$needs_transform} {
+      $xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
       if {$csi == 1} {
         $dsti copy $srci
       }
     } else {
+      switch $xth(me,zoom) {
+        100 {
+          $xth(me,can) itemconfigure [lindex $imgl 1] -image $srci
+        }
+        default {
+          $xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
+        }
+      }
       switch $xth(me,zoom) {
         25 {$dsti copy $srci -subsample 4 -shrink}
         50 {$dsti copy $srci -subsample 2 -shrink}
