@@ -152,6 +152,253 @@ proc xth_me_image_set_gamma {imgx} {
   xth_status_bar_pop me
 }
 
+
+proc xth_me_image_set_rotation {imgx newrotation} {
+  global xth
+  if {$xth(me,imgs,$imgx,vsb) <= 0} {
+    return
+  }
+  if {$xth(me,imgs,$imgx,XVI)} {
+    return
+  }
+  set xth(me,imgs,$imgx,rotation) $newrotation
+  # Force reload of image with new rotation
+  xth_me_image_rescan $imgx
+  xth_me_image_redraw $imgx
+}
+
+
+proc xth_me_image_set_scale {imgx newscale} {
+  global xth
+  if {$xth(me,imgs,$imgx,vsb) <= 0} {
+    return
+  }
+  if {$xth(me,imgs,$imgx,XVI)} {
+    return
+  }
+  # Ensure scale is a valid positive number
+  if {[catch {expr {double($newscale)}}] || $newscale <= 0} {
+    set newscale 1.0
+  }
+  set xth(me,imgs,$imgx,scale) $newscale
+  # Force reload of image with new scale
+  xth_me_image_rescan $imgx
+  xth_me_image_redraw $imgx
+}
+
+
+proc xth_me_image_update_rotation {} {
+  global xth
+  set iidx [lindex [$xth(ctrl,me,images).il.ilbox curselection] 0]
+  if {[string length $iidx] < 1} {
+    return
+  }
+  set imgx [lindex $xth(me,imgs,xlist) $iidx]
+  $xth(ctrl,me,images).ic.rotl configure -text [format "rotation %d\u00b0" $xth(me,imgs,$imgx,rotation)]
+  set xth(ctrl,me,images,rotation) $xth(me,imgs,$imgx,rotation)
+}
+
+
+proc xth_me_image_update_scale {} {
+  global xth
+  set iidx [lindex [$xth(ctrl,me,images).il.ilbox curselection] 0]
+  if {[string length $iidx] < 1} {
+    return
+  }
+  set imgx [lindex $xth(me,imgs,xlist) $iidx]
+  set xth(ctrl,me,images,scale) [format "%.2f" $xth(me,imgs,$imgx,scale)]
+}
+
+
+proc xth_me_image_set_rotation_to {} {
+  global xth
+  xth_me_cmds_update {}
+  if {$xth(me,nimgs) < 1} {
+    return
+  }
+  set iidx [lindex [$xth(ctrl,me,images).il.ilbox curselection] 0]
+  set imgx [lindex $xth(me,imgs,xlist) $iidx]
+  set oldrot $xth(me,imgs,$imgx,rotation)
+  set newrot $xth(ctrl,me,images,rotation)
+  # Validate rotation
+  if {[catch {expr {double($newrot)}}]} {
+    set newrot $oldrot
+  }
+  # Normalize to 0-360 range
+  set newrot [expr {fmod($newrot, 360)}]
+  if {$newrot < 0} {
+    set newrot [expr {$newrot + 360}]
+  }
+  xth_me_unredo_action [mc "rotating image"] \
+    "xth_me_image_set_rotation $imgx $oldrot; xth_me_image_update_rotation" \
+    "xth_me_image_set_rotation $imgx $newrot; xth_me_image_update_rotation"
+  xth_me_image_set_rotation $imgx $newrot
+  xth_me_image_update_rotation
+}
+
+
+proc xth_me_image_reset_rotation {} {
+  global xth
+  xth_me_cmds_update {}
+  if {$xth(me,nimgs) < 1} {
+    return
+  }
+  set iidx [lindex [$xth(ctrl,me,images).il.ilbox curselection] 0]
+  set imgx [lindex $xth(me,imgs,xlist) $iidx]
+  set oldrot $xth(me,imgs,$imgx,rotation)
+  xth_me_unredo_action [mc "resetting image rotation"] \
+    "xth_me_image_set_rotation $imgx $oldrot; xth_me_image_update_rotation" \
+    "xth_me_image_set_rotation $imgx 0; xth_me_image_update_rotation"
+  xth_me_image_set_rotation $imgx 0
+  xth_me_image_update_rotation
+}
+
+
+proc xth_me_image_reset_scale {} {
+  global xth
+  xth_me_cmds_update {}
+  if {$xth(me,nimgs) < 1} {
+    return
+  }
+  set iidx [lindex [$xth(ctrl,me,images).il.ilbox curselection] 0]
+  set imgx [lindex $xth(me,imgs,xlist) $iidx]
+  set oldscale $xth(me,imgs,$imgx,scale)
+  xth_me_unredo_action [mc "resetting image scale"] \
+    "xth_me_image_set_scale $imgx $oldscale; xth_me_image_update_scale" \
+    "xth_me_image_set_scale $imgx 1.0; xth_me_image_update_scale"
+  xth_me_image_set_scale $imgx 1.0
+  xth_me_image_update_scale
+}
+
+
+proc xth_me_image_set_scale_to {} {
+  global xth
+  xth_me_cmds_update {}
+  if {$xth(me,nimgs) < 1} {
+    return
+  }
+  set iidx [lindex [$xth(ctrl,me,images).il.ilbox curselection] 0]
+  set imgx [lindex $xth(me,imgs,xlist) $iidx]
+  set oldscale $xth(me,imgs,$imgx,scale)
+  set newscale $xth(ctrl,me,images,scale)
+  # Validate scale
+  if {[catch {expr {double($newscale)}}] || $newscale <= 0} {
+    set newscale $oldscale
+  }
+  xth_me_unredo_action [mc "scaling image"] \
+    "xth_me_image_set_scale $imgx $oldscale; xth_me_image_update_scale" \
+    "xth_me_image_set_scale $imgx $newscale; xth_me_image_update_scale"
+  xth_me_image_set_scale $imgx $newscale
+  xth_me_image_update_scale
+}
+
+
+# Rotate image by any angle (in degrees)
+# Returns a new photo image with the rotation applied
+# Uses bilinear interpolation for smooth rotation
+proc xth_me_image_rotate {srcimg angle} {
+  # Normalize angle to 0-360 range
+  set angle [expr {fmod($angle, 360)}]
+  if {$angle < 0} {
+    set angle [expr {$angle + 360}]
+  }
+
+  if {$angle == 0} {
+    return $srcimg
+  }
+
+  set w [image width $srcimg]
+  set h [image height $srcimg]
+
+  # Special case: 180 degrees can use fast subsample method
+  if {abs($angle - 180) < 0.01} {
+    set dstimg [image create photo -width $w -height $h]
+    $dstimg copy $srcimg -subsample -1 -1
+    return $dstimg
+  }
+
+  # Convert angle to radians
+  set pi 3.14159265358979323846
+  set rad [expr {$angle * $pi / 180.0}]
+  set cos_a [expr {cos($rad)}]
+  set sin_a [expr {sin($rad)}]
+
+  # Calculate bounding box of rotated image
+  set corners [list \
+    [list 0 0] \
+    [list $w 0] \
+    [list 0 $h] \
+    [list $w $h]]
+
+  set min_x 0
+  set max_x 0
+  set min_y 0
+  set max_y 0
+  set first 1
+  foreach corner $corners {
+    set x [lindex $corner 0]
+    set y [lindex $corner 1]
+    set rx [expr {$x * $cos_a - $y * $sin_a}]
+    set ry [expr {$x * $sin_a + $y * $cos_a}]
+    if {$first} {
+      set min_x $rx
+      set max_x $rx
+      set min_y $ry
+      set max_y $ry
+      set first 0
+    } else {
+      if {$rx < $min_x} {set min_x $rx}
+      if {$rx > $max_x} {set max_x $rx}
+      if {$ry < $min_y} {set min_y $ry}
+      if {$ry > $max_y} {set max_y $ry}
+    }
+  }
+
+  set new_w [expr {int(ceil($max_x - $min_x))}]
+  set new_h [expr {int(ceil($max_y - $min_y))}]
+
+  # Center of source image
+  set cx [expr {$w / 2.0}]
+  set cy [expr {$h / 2.0}]
+
+  # Center of destination image
+  set new_cx [expr {$new_w / 2.0}]
+  set new_cy [expr {$new_h / 2.0}]
+
+  # Create destination image
+  set dstimg [image create photo -width $new_w -height $new_h]
+
+  # Fill with transparent/black background
+  $dstimg put black -to 0 0 $new_w $new_h
+
+  # Perform rotation with nearest-neighbor sampling for speed
+  # For better quality but slower, use bilinear interpolation
+  for {set dy 0} {$dy < $new_h} {incr dy 2} {
+    for {set dx 0} {$dx < $new_w} {incr dx 2} {
+      # Map destination coordinates back to source
+      set rel_x [expr {$dx - $new_cx}]
+      set rel_y [expr {$dy - $new_cy}]
+
+      # Inverse rotation
+      set src_x [expr {$rel_x * $cos_a + $rel_y * $sin_a + $cx}]
+      set src_y [expr {-$rel_x * $sin_a + $rel_y * $cos_a + $cy}]
+
+      # Check bounds
+      set ix [expr {int($src_x)}]
+      set iy [expr {int($src_y)}]
+
+      if {$ix >= 0 && $ix < $w && $iy >= 0 && $iy < $h} {
+        set pixel [$srcimg get $ix $iy]
+        # Fill 2x2 block for speed
+        $dstimg put [list $pixel] -to $dx $dy [expr {min($dx+2, $new_w)}] [expr {min($dy+2, $new_h)}]
+      }
+    }
+  }
+
+  return $dstimg
+}
+
+
 if {$xth(gui,me,nozoom)} {
 
 proc xth_me_images_rescandraw {} {
@@ -241,6 +488,42 @@ proc xth_me_image_rescan {imgx} {
   xth_status_bar_push me
   set origgamma [$srci cget -gamma]
   $srci configure -gamma 1.0
+
+  # Apply rotation and scale transformations if needed
+  set rotation $xth(me,imgs,$imgx,rotation)
+  set scale $xth(me,imgs,$imgx,scale)
+  set needs_transform [expr {$rotation != 0 || $scale != 1.0}]
+
+  if {$needs_transform} {
+    xth_status_bar_status me [format "Transforming image %s ..." $xth(me,imgs,$imgx,name)]
+
+    # First apply rotation if needed
+    if {$rotation != 0} {
+      set rotated_img [xth_me_image_rotate $srci $rotation]
+      set transform_src $rotated_img
+    } else {
+      set transform_src $srci
+    }
+
+    # Then apply scale if needed
+    if {$scale != 1.0} {
+      set scaled_img [image create photo]
+      if {$scale > 1.0} {
+        # Zoom in
+        $scaled_img copy $transform_src -zoom $scale
+      } else {
+        # Zoom out
+        $scaled_img copy $transform_src -subsample [expr {1.0 / $scale}]
+      }
+      if {$rotation != 0} {
+        image delete $transform_src
+      }
+      set srci $scaled_img
+    } else {
+      set srci $transform_src
+    }
+  }
+
   set totalsi [llength $xth(me,imgs,$imgx,subimgs)]
   set csi 0
   xth_status_bar_status me [format "Zooming image %s ..." $xth(me,imgs,$imgx,name)]
@@ -266,7 +549,13 @@ proc xth_me_image_rescan {imgx} {
     }
   }
   xth_me_progbar_hide
-  $srci configure -gamma $origgamma
+
+  # Clean up temporary images
+  if {$needs_transform} {
+    image delete $srci
+  }
+
+  $xth(me,imgs,$imgx,image) configure -gamma $origgamma
   xth_status_bar_pop me
 }
 
@@ -308,6 +597,42 @@ proc xth_me_image_rescan {imgx} {
   }
   set srci $xth(me,imgs,$imgx,image)
   xth_status_bar_push me
+
+  # Apply rotation and scale transformations if needed
+  set rotation $xth(me,imgs,$imgx,rotation)
+  set scale $xth(me,imgs,$imgx,scale)
+  set needs_transform [expr {$rotation != 0 || $scale != 1.0}]
+
+  if {$needs_transform} {
+    xth_status_bar_status me [format "Transforming image %s ..." $xth(me,imgs,$imgx,name)]
+
+    # First apply rotation if needed
+    if {$rotation != 0} {
+      set rotated_img [xth_me_image_rotate $srci $rotation]
+      set transform_src $rotated_img
+    } else {
+      set transform_src $srci
+    }
+
+    # Then apply scale if needed
+    if {$scale != 1.0} {
+      set scaled_img [image create photo]
+      if {$scale > 1.0} {
+        # Zoom in
+        $scaled_img copy $transform_src -zoom $scale
+      } else {
+        # Zoom out
+        $scaled_img copy $transform_src -subsample [expr {1.0 / $scale}]
+      }
+      if {$rotation != 0} {
+        image delete $transform_src
+      }
+      set srci $scaled_img
+    } else {
+      set srci $transform_src
+    }
+  }
+
   set totalsi [llength $xth(me,imgs,$imgx,subimgs)]
   set csi 0
   xth_status_bar_status me [format "Zooming image %s ..." $xth(me,imgs,$imgx,name)]
@@ -331,6 +656,12 @@ proc xth_me_image_rescan {imgx} {
     }
   }
   xth_me_progbar_hide
+
+  # Clean up temporary images
+  if {$needs_transform} {
+    image delete $srci
+  }
+
   xth_status_bar_pop me
 }
 
@@ -773,6 +1104,8 @@ proc xth_me_image_insert {xx yy fname iidx imgx} {
   set xth(me,imgs,$imgx,subimgs) {}
   set xth(me,imgs,$imgx,vsb) $vsb
   set xth(me,imgs,$imgx,gamma) $igamma
+  set xth(me,imgs,$imgx,rotation) 0
+  set xth(me,imgs,$imgx,scale) 1.0
   set xth(me,imgs,$imgx,reload) [list $undocmd $redocmd]
   set xth(me,imgs,$imgx,ffname) $ffname
   set xth(me,imgs,$imgx,fmtime) 0
@@ -1087,6 +1420,14 @@ proc xth_me_image_select {iidx} {
       $xth(ctrl,me,images).ic.gs configure -state disabled
       $xth(ctrl,me,images).ic.gr configure -state disabled
       $xth(ctrl,me,images).ic.gl configure -state disabled
+      $xth(ctrl,me,images).ic.rotl configure -state disabled
+      $xth(ctrl,me,images).ic.rotr configure -state disabled
+      $xth(ctrl,me,images).ic.rote configure -state disabled
+      $xth(ctrl,me,images).ic.rotset configure -state disabled
+      $xth(ctrl,me,images).ic.scl configure -state disabled
+      $xth(ctrl,me,images).ic.scr configure -state disabled
+      $xth(ctrl,me,images).ic.sce configure -state disabled
+      $xth(ctrl,me,images).ic.scset configure -state disabled
       xth_me_image_update_gamma_scale
       set xth(ctrl,me,images,vis) 0
     } else {
@@ -1094,10 +1435,20 @@ proc xth_me_image_select {iidx} {
       $xth(ctrl,me,images).ic.gs configure -state normal
       $xth(ctrl,me,images).ic.gr configure -state normal
       $xth(ctrl,me,images).ic.gl configure -state normal
+      $xth(ctrl,me,images).ic.rotl configure -state normal
+      $xth(ctrl,me,images).ic.rotr configure -state normal
+      $xth(ctrl,me,images).ic.rote configure -state normal
+      $xth(ctrl,me,images).ic.rotset configure -state normal
+      $xth(ctrl,me,images).ic.scl configure -state normal
+      $xth(ctrl,me,images).ic.scr configure -state normal
+      $xth(ctrl,me,images).ic.sce configure -state normal
+      $xth(ctrl,me,images).ic.scset configure -state normal
       xth_me_image_update_gamma_scale
       set xth(ctrl,me,images,vis) $xth(me,imgs,$imgx,vsb)
     }
     xth_me_image_update_position
+    xth_me_image_update_rotation
+    xth_me_image_update_scale
     update idletasks
   } else {
     $xth(ctrl,me,images).ic.viscb configure -state disabled
@@ -1117,6 +1468,16 @@ proc xth_me_image_select {iidx} {
     $xth(ctrl,me,images).ic.gs configure -state disabled
     $xth(ctrl,me,images).ic.gr configure -state disabled
     $xth(ctrl,me,images).ic.gl configure -state disabled -text "gamma 1.00"
+    $xth(ctrl,me,images).ic.rotl configure -state disabled -text "rotation 0°"
+    $xth(ctrl,me,images).ic.rotr configure -state disabled
+    $xth(ctrl,me,images).ic.rote configure -state disabled
+    $xth(ctrl,me,images).ic.rotset configure -state disabled
+    $xth(ctrl,me,images).ic.scl configure -state disabled
+    $xth(ctrl,me,images).ic.scr configure -state disabled
+    $xth(ctrl,me,images).ic.sce configure -state disabled
+    $xth(ctrl,me,images).ic.scset configure -state disabled
+    set xth(ctrl,me,images,rotation) ""
+    set xth(ctrl,me,images,scale) ""
 #    $xth(ctrl,me,images).il.ilbox configure -state disabled
     focus $xth(gui,main)
     update idletasks

@@ -1788,6 +1788,45 @@ grid $xth(ctrl,me,images).ic.gl -column 0 -row 6 -sticky news -columnspan 2
 grid $xth(ctrl,me,images).ic.gr -column 2 -row 6 -sticky news -columnspan 2
 grid $xth(ctrl,me,images).ic.gs -column 0 -row 7 -sticky news -columnspan 4
 grid $xth(ctrl,me,images).ic.viscb -column 0 -row 8 -sticky news -columnspan 4
+
+# Rotation controls
+Label $xth(ctrl,me,images).ic.rotl -text "rotation 0°" -anchor w -font $xth(gui,lfont) -state disabled
+xth_status_bar me $xth(ctrl,me,images).ic.rotl [mc "Image rotation angle."]
+Button $xth(ctrl,me,images).ic.rotr -text [mc "Reset"] -anchor center -font $xth(gui,lfont) \
+  -state disabled -width 8 -command "xth_me_image_reset_rotation"
+xth_status_bar me $xth(ctrl,me,images).ic.rotr [mc "Reset image rotation."]
+Entry $xth(ctrl,me,images).ic.rote -font $xth(gui,lfont) -state disabled -width 8 \
+  -textvariable xth(ctrl,me,images,rotation)
+xth_status_bar me $xth(ctrl,me,images).ic.rote [mc "Set rotation angle in degrees."]
+Button $xth(ctrl,me,images).ic.rotset -text [mc "Rotate"] -anchor center -font $xth(gui,lfont) \
+  -state disabled -width 8 -command "xth_me_image_set_rotation_to"
+xth_status_bar me $xth(ctrl,me,images).ic.rotset [mc "Apply rotation angle."]
+
+# Scale controls
+Label $xth(ctrl,me,images).ic.scl -text [mc "scale"] -anchor w -font $xth(gui,lfont) -state disabled
+xth_status_bar me $xth(ctrl,me,images).ic.scl [mc "Image scale factor."]
+Button $xth(ctrl,me,images).ic.scr -text [mc "Reset"] -anchor center -font $xth(gui,lfont) \
+  -state disabled -width 8 -command "xth_me_image_reset_scale"
+xth_status_bar me $xth(ctrl,me,images).ic.scr [mc "Reset image scale to 1.0."]
+Entry $xth(ctrl,me,images).ic.sce -font $xth(gui,lfont) -state disabled -width 8 \
+  -textvariable xth(ctrl,me,images,scale)
+xth_status_bar me $xth(ctrl,me,images).ic.sce [mc "Set scale factor (e.g., 0.5, 1.0, 2.0)."]
+Button $xth(ctrl,me,images).ic.scset -text [mc "Scale"] -anchor center -font $xth(gui,lfont) \
+  -state disabled -width 8 -command "xth_me_image_set_scale_to"
+xth_status_bar me $xth(ctrl,me,images).ic.scset [mc "Apply scale factor."]
+
+xth_me_bind_entry_focus_return "$xth(ctrl,me,images).ic.rote" "xth_me_image_set_rotation_to"
+xth_me_bind_entry_focus_return "$xth(ctrl,me,images).ic.sce" "xth_me_image_set_scale_to"
+xth_me_bind_entry_focusin "$xth(ctrl,me,images).ic.rote $xth(ctrl,me,images).ic.sce"
+
+grid $xth(ctrl,me,images).ic.rotl -column 0 -row 9 -sticky news -columnspan 2
+grid $xth(ctrl,me,images).ic.rotr -column 2 -row 9 -sticky news -columnspan 2
+grid $xth(ctrl,me,images).ic.rote -column 0 -row 10 -sticky ew -columnspan 2 -padx 1
+grid $xth(ctrl,me,images).ic.rotset -column 2 -row 10 -sticky ew -columnspan 2 -padx 1
+grid $xth(ctrl,me,images).ic.scl -column 0 -row 11 -sticky news -columnspan 2
+grid $xth(ctrl,me,images).ic.scr -column 2 -row 11 -sticky news -columnspan 2
+grid $xth(ctrl,me,images).ic.sce -column 0 -row 12 -sticky ew -columnspan 2 -padx 1
+grid $xth(ctrl,me,images).ic.scset -column 2 -row 12 -sticky ew -columnspan 2 -padx 1
 # xth_status_bar me $xth(ctrl,me,images). "To set file encoding, type encoding name and press <Change> button."
 
 
