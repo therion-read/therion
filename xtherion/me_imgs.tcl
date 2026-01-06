@@ -589,7 +589,8 @@ proc xth_me_image_rescan {imgx} {
     if {$needs_transform} {
       $xth(me,can) itemconfigure [lindex $imgl 1] -image $dsti
       if {$csi == 1} {
-        $dsti copy $srci
+        $dsti blank
+        $dsti copy $srci -shrink
       }
     } else {
       switch $xth(me,zoom) {
@@ -707,7 +708,8 @@ proc xth_me_image_rescan {imgx} {
     if {$needs_transform} {
       # Copy entire transformed image to first tile
       if {$csi == 1} {
-        $dsti copy $srci
+        $dsti blank
+        $dsti copy $srci -shrink
       }
       # Leave other tiles blank
     } else {
