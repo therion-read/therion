@@ -409,6 +409,54 @@ proc xth_me_image_rotate {srcimg angle} {
 }
 
 
+# Scale image by any factor (supports fractional scaling)
+# Returns a new photo image with the scaling applied
+# Uses nearest-neighbor sampling for speed
+proc xth_me_image_scale {srcimg scale_factor} {
+  if {$scale_factor == 1.0} {
+    return $srcimg
+  }
+
+  set w [image width $srcimg]
+  set h [image height $srcimg]
+
+  # Calculate new dimensions
+  set new_w [expr {int($w * $scale_factor + 0.5)}]
+  set new_h [expr {int($h * $scale_factor + 0.5)}]
+
+  if {$new_w < 1} {set new_w 1}
+  if {$new_h < 1} {set new_h 1}
+
+  # Create destination image
+  set dstimg [image create photo -width $new_w -height $new_h]
+
+  # Calculate inverse scale for mapping destination to source
+  set inv_scale [expr {1.0 / $scale_factor}]
+
+  # Perform scaling row by row with nearest-neighbor sampling
+  for {set dy 0} {$dy < $new_h} {incr dy} {
+    set row_data {}
+    for {set dx 0} {$dx < $new_w} {incr dx} {
+      # Map destination pixel to source pixel
+      set src_x [expr {int($dx * $inv_scale)}]
+      set src_y [expr {int($dy * $inv_scale)}]
+
+      # Clamp to source image bounds
+      if {$src_x >= $w} {set src_x [expr {$w - 1}]}
+      if {$src_y >= $h} {set src_y [expr {$h - 1}]}
+
+      # Get pixel from source
+      set pixel [$srcimg get $src_x $src_y]
+      lappend row_data [xth_me_rgb2hex $pixel]
+    }
+    # Put entire row at once
+    $dstimg put [list $row_data] -to 0 $dy
+  }
+
+  return $dstimg
+}
+
+
 if {$xth(gui,me,nozoom)} {
 
 proc xth_me_images_rescandraw {} {
@@ -517,20 +565,7 @@ proc xth_me_image_rescan {imgx} {
 
     # Then apply scale if needed
     if {$scale != 1.0} {
-      set scaled_img [image create photo]
-      # Round scale to integer for Tk compatibility
-      set int_scale [expr {int($scale + 0.5)}]
-      if {$int_scale < 1} {set int_scale 1}
-
-      if {$scale > 1.0} {
-        # Zoom in - use integer zoom
-        $scaled_img copy $transform_src -zoom $int_scale
-      } else {
-        # Zoom out - calculate integer subsample
-        set subsample [expr {int(1.0 / $scale + 0.5)}]
-        if {$subsample < 1} {set subsample 1}
-        $scaled_img copy $transform_src -subsample $subsample
-      }
+      set scaled_img [xth_me_image_scale $transform_src $scale]
       if {$rotation != 0} {
         image delete $transform_src
       }
@@ -639,20 +674,7 @@ proc xth_me_image_rescan {imgx} {
 
     # Then apply scale if needed
     if {$scale != 1.0} {
-      set scaled_img [image create photo]
-      # Round scale to integer for Tk compatibility
-      set int_scale [expr {int($scale + 0.5)}]
-      if {$int_scale < 1} {set int_scale 1}
-
-      if {$scale > 1.0} {
-        # Zoom in - use integer zoom
-        $scaled_img copy $transform_src -zoom $int_scale
-      } else {
-        # Zoom out - calculate integer subsample
-        set subsample [expr {int(1.0 / $scale + 0.5)}]
-        if {$subsample < 1} {set subsample 1}
-        $scaled_img copy $transform_src -subsample $subsample
-      }
+      set scaled_img [xth_me_image_scale $transform_src $scale]
       if {$rotation != 0} {
         image delete $transform_src
       }
