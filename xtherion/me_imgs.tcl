@@ -608,12 +608,18 @@ proc xth_me_image_rescan {imgx} {
   }
   xth_me_progbar_hide
 
+  # Restore gamma and apply to tiles
+  $xth(me,imgs,$imgx,image) configure -gamma $origgamma
+  foreach imgl $xth(me,imgs,$imgx,subimgs) {
+    set dsti [lindex $imgl 0]
+    $dsti configure -gamma $origgamma
+  }
+
   # Clean up temporary images
   if {$needs_transform} {
     image delete $srci
   }
 
-  $xth(me,imgs,$imgx,image) configure -gamma $origgamma
   xth_status_bar_pop me
 }
 
@@ -718,6 +724,13 @@ proc xth_me_image_rescan {imgx} {
     }
   }
   xth_me_progbar_hide
+
+  # Apply gamma to tiles
+  set current_gamma [$xth(me,imgs,$imgx,image) cget -gamma]
+  foreach imgl $xth(me,imgs,$imgx,subimgs) {
+    set dsti [lindex $imgl 0]
+    $dsti configure -gamma $current_gamma
+  }
 
   # Clean up temporary images
   if {$needs_transform} {
