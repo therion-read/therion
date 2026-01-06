@@ -194,8 +194,8 @@ proc xth_me_image_update_rotation {} {
     return
   }
   set imgx [lindex $xth(me,imgs,xlist) $iidx]
-  $xth(ctrl,me,images).ic.rotl configure -text [format "rotation %d\u00b0" $xth(me,imgs,$imgx,rotation)]
-  set xth(ctrl,me,images,rotation) $xth(me,imgs,$imgx,rotation)
+  $xth(ctrl,me,images).ic.rotl configure -text [format "rotation %.0f\u00b0" $xth(me,imgs,$imgx,rotation)]
+  set xth(ctrl,me,images,rotation) [format "%.1f" $xth(me,imgs,$imgx,rotation)]
 }
 
 
@@ -317,7 +317,7 @@ proc xth_me_image_rotate {srcimg angle} {
   set h [image height $srcimg]
 
   # Special case: 180 degrees can use fast subsample method
-  if {abs($angle - 180) < 0.01} {
+  if {[expr {abs($angle - 180) < 0.01}]} {
     set dstimg [image create photo -width $w -height $h]
     $dstimg copy $srcimg -subsample -1 -1
     return $dstimg
